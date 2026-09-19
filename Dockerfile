@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY --chown=appuser:appgroup . .
 
+RUN chown -R appuser:appgroup /app
+
 USER appuser
 
 EXPOSE 8000
