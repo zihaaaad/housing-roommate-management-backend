@@ -11,11 +11,16 @@ from app.models.roommate_request import RoommateRequest
 from app.models.user import User
 
 
-def seed_database():
-    Base.metadata.drop_all(bind=engine)
+def seed_database(drop_existing: bool = False):
+    if drop_existing:
+        Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
+    existing_admin = db.query(User).filter(User.email == "admin@housing.com").first()
+    if existing_admin:
+        db.close()
+        return
 
     admin_user = User(
         email="admin@housing.com",
@@ -320,4 +325,4 @@ def seed_database():
 
 
 if __name__ == "__main__":
-    seed_database()
+    seed_database(drop_existing=True)

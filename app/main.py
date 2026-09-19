@@ -24,6 +24,11 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     Base.metadata.create_all(bind=engine)
+    try:
+        from seed import seed_database
+        seed_database(drop_existing=False)
+    except Exception:
+        pass
     yield
 
 
