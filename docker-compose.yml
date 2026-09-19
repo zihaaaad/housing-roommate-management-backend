@@ -1,0 +1,47 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: housing_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/housing_roommates_db
+      - SECRET_KEY=e5b542c10bd817f140d17e68551e8d298296e5a30f3f565510297aabb35b2c3d
+      - REFRESH_SECRET_KEY=9f82d8c36b69b2d847120a112048f075d9e54d6a8946e3a5c2d3a778ef1092ab
+      - CORS_ORIGINS=["*"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - housing_network
+
+  db:
+    image: postgres:16-alpine
+    container_name: housing_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=housing_roommates_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d housing_roommates_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - housing_network
+
+volumes:
+  postgres_data:
+
+networks:
+  housing_network:
+    driver: bridge
