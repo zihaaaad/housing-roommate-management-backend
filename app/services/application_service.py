@@ -122,15 +122,46 @@ class ApplicationService:
             if not (is_landlord or is_admin):
                 raise ForbiddenException("Only the property owner or admin can review and update this application.")
 
+        if target_status == "APPROVED":
+            if application.room_id:
+                room_query = self.db.query(Room).filter(Room.id == application.room_id)
+                if self.db.bind and self.db.bind.dialect.name != "sqlite":
+                    room_query = room_query.with_for_update()
+                room = room_query.first()
+                if not room or not room.is_available:
+                    raise ConflictException("This room is no longer available for lease.")
+                room.is_available = False
+                competing_apps = self.db.query(RentalApplication).filter(
+                    RentalApplication.room_id == room.id,
+                    RentalApplication.id != application.id,
+                    RentalApplication.status.in_(["PENDING", "UNDER_REVIEW"])
+                ).all()
+                for competing in competing_apps:
+                    competing.status = "REJECTED"
+                    competing.landlord_decision_notes = "Room was leased to another applicant."
+                    competing.updated_at = datetime.now(timezone.utc)
+            else:
+                prop_query = self.db.query(Property).filter(Property.id == application.property_id)
+                if self.db.bind and self.db.bind.dialect.name != "sqlite":
+                    prop_query = prop_query.with_for_update()
+                property_record = prop_query.first()
+                if not property_record or property_record.status != "AVAILABLE":
+                    raise ConflictException("This property is no longer available for lease.")
+                property_record.status = "LEASED"
+                competing_apps = self.db.query(RentalApplication).filter(
+                    RentalApplication.property_id == property_record.id,
+                    RentalApplication.id != application.id,
+                    RentalApplication.status.in_(["PENDING", "UNDER_REVIEW"])
+                ).all()
+                for competing in competing_apps:
+                    competing.status = "REJECTED"
+                    competing.landlord_decision_notes = "Property was leased to another applicant."
+                    competing.updated_at = datetime.now(timezone.utc)
+
         application.status = target_status
         if payload.landlord_decision_notes:
             application.landlord_decision_notes = payload.landlord_decision_notes
         application.updated_at = datetime.now(timezone.utc)
-
-        if target_status == "APPROVED" and application.room_id:
-            room = self.db.query(Room).filter(Room.id == application.room_id).first()
-            if room:
-                room.is_available = False
 
         recipient_id = application.property.landlord_id if (is_applicant and target_status == "WITHDRAWN") else application.applicant_id
         notification = Notification(

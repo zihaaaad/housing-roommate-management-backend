@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
 
 class UserProfile(Base):
     __tablename__ = "user_profiles"
+    __table_args__ = (
+        Index("idx_profiles_city_budget", "preferred_city", "budget_min", "budget_max"),
+    )
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)

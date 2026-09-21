@@ -14,6 +14,7 @@ class ApplicationSettings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     DATABASE_URL: str = "sqlite:///./housing_roommates.db"
+    REDIS_URL: str = "redis://localhost:6379/0"
     CORS_ORIGINS: Union[List[str], str] = ["*"]
 
     @field_validator("CORS_ORIGINS", mode="before")

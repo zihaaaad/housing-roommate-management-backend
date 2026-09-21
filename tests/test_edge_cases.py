@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -243,4 +244,127 @@ def test_delete_user_account_lifecycle(client: TestClient, admin_auth_headers: d
 
     re_check = client.get(f"/api/v1/users/{user_id}")
     assert re_check.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_application_approval_rejects_competing_applications(
+    client: TestClient,
+    landlord_auth_headers: dict,
+    seeker_auth_headers: dict
+):
+    create_payload = {
+        "title": "Double Booking Test Property",
+        "description": "Property to test auto-rejecting competing applications.",
+        "address": "99 Competition Rd",
+        "city": "Dhaka",
+        "base_monthly_rent": 20000.0
+    }
+    prop_res = client.post("/api/v1/properties", json=create_payload, headers=landlord_auth_headers)
+    property_id = prop_res.json()["data"]["id"]
+
+    move_in = (datetime.now(timezone.utc) + timedelta(days=20)).isoformat()
+    app1_res = client.post(
+        "/api/v1/applications",
+        json={
+            "property_id": property_id,
+            "proposed_move_in_date": move_in,
+            "lease_duration_months": 12,
+            "monthly_income": 80000.0,
+            "employment_status": "Employed",
+            "emergency_contact_name": "Contact 1",
+            "emergency_contact_phone": "+8801700000001"
+        },
+        headers=seeker_auth_headers
+    )
+    app1_id = app1_res.json()["data"]["id"]
+
+    reg_seeker2 = client.post("/api/v1/auth/register", json={
+        "email": "seeker2_competition@housing.com",
+        "username": "seeker2_competition",
+        "password": "Password@123",
+        "full_name": "Applicant Two",
+        "phone_number": "+8801700000002"
+    })
+    login_seeker2 = client.post("/api/v1/auth/login", json={
+        "username_or_email": "seeker2_competition@housing.com",
+        "password": "Password@123"
+    })
+    seeker2_headers = {"Authorization": f"Bearer {login_seeker2.json()['data']['access_token']}"}
+
+    app2_res = client.post(
+        "/api/v1/applications",
+        json={
+            "property_id": property_id,
+            "proposed_move_in_date": move_in,
+            "lease_duration_months": 12,
+            "monthly_income": 75000.0,
+            "employment_status": "Employed",
+            "emergency_contact_name": "Contact 2",
+            "emergency_contact_phone": "+8801700000003"
+        },
+        headers=seeker2_headers
+    )
+    app2_id = app2_res.json()["data"]["id"]
+
+    approve_res = client.patch(
+        f"/api/v1/applications/{app1_id}/status",
+        json={"status": "APPROVED", "landlord_decision_notes": "Welcome to your new home!"},
+        headers=landlord_auth_headers
+    )
+    assert approve_res.status_code == status.HTTP_200_OK
+    assert approve_res.json()["data"]["status"] == "APPROVED"
+
+    check_app2 = client.get(f"/api/v1/applications/{app2_id}", headers=seeker2_headers)
+    assert check_app2.status_code == status.HTTP_200_OK
+    assert check_app2.json()["data"]["status"] == "REJECTED"
+    assert "leased" in check_app2.json()["data"]["landlord_decision_notes"].lower()
+
+    check_prop = client.get(f"/api/v1/properties/{property_id}")
+    assert check_prop.status_code == status.HTTP_200_OK
+    assert check_prop.json()["data"]["status"] == "LEASED"
+
+
+def test_auth_rate_limiting_exceeded(client: TestClient):
+    from app.core.rate_limiter import forgot_password_rate_limiter
+    forgot_password_rate_limiter.requests.clear()
+    for _ in range(10):
+        client.post("/api/v1/auth/forgot-password", json={"email": "nonexistent@housing.com"})
+    blocked_res = client.post("/api/v1/auth/forgot-password", json={"email": "nonexistent@housing.com"})
+    assert blocked_res.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    assert blocked_res.json()["error_code"] == "RATE_LIMIT_EXCEEDED"
+    forgot_password_rate_limiter.requests.clear()
+
+
+def test_websocket_chat_communication(client: TestClient, seeker_user: User, landlord_user: User):
+    from app.core.security import create_access_token
+    token = create_access_token(str(seeker_user.id))
+    with client.websocket_connect(f"/ws/chat?token={token}") as ws:
+        payload = {
+            "receiver_id": landlord_user.id,
+            "content": "Real-time WebSocket message test."
+        }
+        ws.send_text(json.dumps(payload))
+        resp = ws.receive_json()
+        assert resp["status"] == "sent"
+        assert resp["data"]["content"] == "Real-time WebSocket message test."
+
+
+def test_get_user_conversations_inbox(client: TestClient, seeker_auth_headers: dict, landlord_auth_headers: dict, landlord_user: User):
+    send_res = client.post(
+        "/api/v1/messages",
+        json={"receiver_id": landlord_user.id, "content": "Hello landlord, is the flat vacant?"},
+        headers=seeker_auth_headers
+    )
+    assert send_res.status_code == status.HTTP_201_CREATED
+
+    conv_res = client.get("/api/v1/messages/conversations", headers=seeker_auth_headers)
+    assert conv_res.status_code == status.HTTP_200_OK
+    data = conv_res.json()["data"]
+    assert len(data) >= 1
+    assert data[0]["last_message"] == "Hello landlord, is the flat vacant?"
+    assert data[0]["lastMessage"] == "Hello landlord, is the flat vacant?"
+
+    all_res = client.get("/api/v1/messages", headers=seeker_auth_headers)
+    assert all_res.status_code == status.HTTP_200_OK
+
+
 

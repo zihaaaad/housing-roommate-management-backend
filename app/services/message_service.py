@@ -74,3 +74,39 @@ class MessageService:
         self.db.delete(message)
         self.db.commit()
 
+    def get_user_conversations(self, current_user_id: int) -> List[dict]:
+        messages = self.db.query(DirectMessage).options(
+            joinedload(DirectMessage.sender),
+            joinedload(DirectMessage.receiver)
+        ).filter(
+            or_(
+                DirectMessage.sender_id == current_user_id,
+                DirectMessage.receiver_id == current_user_id
+            )
+        ).order_by(DirectMessage.created_at.desc()).all()
+
+        conversations_map = {}
+        for m in messages:
+            partner = m.receiver if m.sender_id == current_user_id else m.sender
+            if not partner:
+                continue
+            partner_id = partner.id
+            if partner_id not in conversations_map:
+                conversations_map[partner_id] = {
+                    "id": partner.id,
+                    "full_name": partner.full_name,
+                    "username": partner.username,
+                    "email": partner.email,
+                    "role": partner.role,
+                    "avatar_url": partner.avatar_url,
+                    "last_message": m.content,
+                    "lastMessage": m.content,
+                    "last_message_at": m.created_at,
+                    "unread_count": 0,
+                    "partner": partner
+                }
+            if m.receiver_id == current_user_id and not m.is_read:
+                conversations_map[partner_id]["unread_count"] += 1
+
+        return list(conversations_map.values())
+

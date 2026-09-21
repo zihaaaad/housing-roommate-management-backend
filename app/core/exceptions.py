@@ -59,3 +59,12 @@ class ConflictException(ApplicationException):
             detail=detail,
             error_code="CONFLICT"
         )
+
+
+class TooManyRequestsException(ApplicationException):
+    def __init__(self, detail: str = "Rate limit exceeded. Please try again later."):
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail,
+            error_code="RATE_LIMIT_EXCEEDED"
+        )

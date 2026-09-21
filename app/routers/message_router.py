@@ -4,10 +4,36 @@ from app.core.response import StandardApiResponse
 from app.dependencies import CurrentUser, DatabaseSession
 from app.schemas.auth import UserSummaryResponse
 from app.schemas.common import MessageOnlyResponse
-from app.schemas.message import MessageCreate, MessageResponse
+from app.schemas.message import ConversationSummaryResponse, MessageCreate, MessageResponse
 from app.services.message_service import MessageService
 
 router = APIRouter(prefix="/messages", tags=["Internal Messaging"])
+
+
+@router.get("/conversations", status_code=status.HTTP_200_OK, response_model=StandardApiResponse[List[ConversationSummaryResponse]])
+def get_user_conversations(
+    current_user: CurrentUser,
+    db: DatabaseSession
+):
+    msg_service = MessageService(db)
+    conversations = msg_service.get_user_conversations(current_user.id)
+    return StandardApiResponse(
+        message="Conversations retrieved successfully.",
+        data=conversations
+    )
+
+
+@router.get("", status_code=status.HTTP_200_OK, response_model=StandardApiResponse[List[ConversationSummaryResponse]])
+def get_all_user_conversations(
+    current_user: CurrentUser,
+    db: DatabaseSession
+):
+    msg_service = MessageService(db)
+    conversations = msg_service.get_user_conversations(current_user.id)
+    return StandardApiResponse(
+        message="Conversations retrieved successfully.",
+        data=conversations
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=StandardApiResponse[MessageResponse])

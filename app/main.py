@@ -18,6 +18,7 @@ from app.routers import (
     room_router,
     roommate_router,
     user_router,
+    ws_router,
 )
 
 
@@ -39,13 +40,24 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+has_wildcard_origin = "*" in settings.CORS_ORIGINS or settings.CORS_ORIGINS == ["*"]
+
+if has_wildcard_origin:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://.*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.exception_handler(ApplicationException)
@@ -108,6 +120,8 @@ app.include_router(inquiry_router, prefix=api_prefix)
 app.include_router(application_router, prefix=api_prefix)
 app.include_router(notification_router, prefix=api_prefix)
 app.include_router(message_router, prefix=api_prefix)
+app.include_router(ws_router, prefix=api_prefix)
+app.include_router(ws_router)
 
 
 @app.get("/health", tags=["Health"])

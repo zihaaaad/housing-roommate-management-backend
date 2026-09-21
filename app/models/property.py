@@ -1,11 +1,15 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
 
 class Property(Base):
     __tablename__ = "properties"
+    __table_args__ = (
+        Index("idx_properties_status_city_rent", "status", "city", "base_monthly_rent"),
+        Index("idx_properties_city_type", "city", "property_type"),
+    )
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     landlord_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)

@@ -162,7 +162,7 @@ class RoommateMatchingService:
                 func.lower(UserProfile.preferred_city) == effective_city.strip().lower()
             )
 
-        candidates = candidate_query.limit(100).all()
+        candidates = candidate_query.all()
         scored_candidates: List[RoommateMatchResponse] = []
 
         for candidate in candidates:

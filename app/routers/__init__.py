@@ -7,6 +7,7 @@ from app.routers.property_router import router as property_router
 from app.routers.room_router import router as room_router
 from app.routers.roommate_router import router as roommate_router
 from app.routers.user_router import router as user_router
+from app.routers.websocket_router import ws_router
 
 __all__ = [
     "auth_router",
@@ -18,4 +19,5 @@ __all__ = [
     "application_router",
     "notification_router",
     "message_router",
+    "ws_router",
 ]

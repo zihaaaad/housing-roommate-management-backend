@@ -1,4 +1,9 @@
 from fastapi import APIRouter, Depends, status
+from app.core.rate_limiter import (
+    rate_limit_forgot_password,
+    rate_limit_login,
+    rate_limit_register,
+)
 from app.core.response import StandardApiResponse
 from app.dependencies import CurrentUser, DatabaseSession
 from app.schemas.auth import (
@@ -19,7 +24,12 @@ from app.services.auth_service import AuthenticationService
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=StandardApiResponse[UserSummaryResponse])
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=StandardApiResponse[UserSummaryResponse],
+    dependencies=[Depends(rate_limit_register)]
+)
 def register(payload: UserRegisterRequest, db: DatabaseSession):
     auth_service = AuthenticationService(db)
     new_user = auth_service.register_user(payload)
@@ -29,7 +39,12 @@ def register(payload: UserRegisterRequest, db: DatabaseSession):
     )
 
 
-@router.post("/login", status_code=status.HTTP_200_OK, response_model=StandardApiResponse[AuthTokenResponse])
+@router.post(
+    "/login",
+    status_code=status.HTTP_200_OK,
+    response_model=StandardApiResponse[AuthTokenResponse],
+    dependencies=[Depends(rate_limit_login)]
+)
 def login(payload: UserLoginRequest, db: DatabaseSession):
     auth_service = AuthenticationService(db)
     token_response = auth_service.authenticate_and_login(payload)
@@ -49,7 +64,12 @@ def refresh_token(payload: RefreshTokenRequest, db: DatabaseSession):
     )
 
 
-@router.post("/forgot-password", status_code=status.HTTP_200_OK, response_model=StandardApiResponse[ForgotPasswordResponse])
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_200_OK,
+    response_model=StandardApiResponse[ForgotPasswordResponse],
+    dependencies=[Depends(rate_limit_forgot_password)]
+)
 def forgot_password(payload: ForgotPasswordRequest, db: DatabaseSession):
     auth_service = AuthenticationService(db)
     result = auth_service.initiate_password_reset(payload)
@@ -59,7 +79,12 @@ def forgot_password(payload: ForgotPasswordRequest, db: DatabaseSession):
     )
 
 
-@router.post("/reset-password", status_code=status.HTTP_200_OK, response_model=StandardApiResponse[MessageOnlyResponse])
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    response_model=StandardApiResponse[MessageOnlyResponse],
+    dependencies=[Depends(rate_limit_forgot_password)]
+)
 def reset_password(payload: ResetPasswordRequest, db: DatabaseSession):
     auth_service = AuthenticationService(db)
     auth_service.complete_password_reset(payload)
